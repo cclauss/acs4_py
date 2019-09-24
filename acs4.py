@@ -36,9 +36,9 @@ except NameError:
     basestring = str
     unicode = str
 
-AdeptNS = 'http://ns.adobe.com/adept'
-AdeptNSBracketed = '{' + AdeptNS + '}'
-default_distributor = 'urn:uuid:00000000-0000-0000-0000-000000000001'
+AdeptNS = "http://ns.adobe.com/adept"
+AdeptNSBracketed = "{" + AdeptNS + "}"
+default_distributor = "urn:uuid:00000000-0000-0000-0000-000000000001"
 defaultport = 8080
 expiration_secs = 1800
 
@@ -59,10 +59,21 @@ nonce = None
 # Ditto.  Sample: 2010-06-26T07:35:58+00:00
 expiration = None
 
+
 class Acs4Exception(Exception):
     pass
 
-def mint(server, secret, resource, action, ordersource, rights=None, orderid=None, port=defaultport):
+
+def mint(
+    server,
+    secret,
+    resource,
+    action,
+    ordersource,
+    rights=None,
+    orderid=None,
+    port=defaultport,
+):
     """Create an acs4 download link.
 
     'secret' should be the base-64 encoded secret key string for the
@@ -92,36 +103,51 @@ def mint(server, secret, resource, action, ordersource, rights=None, orderid=Non
 
     """
 
-    if not action in ['enterloan', 'enterorder']:
-        raise Acs4Exception('mint action argument should be enterloan or enterorder')
+    if not action in ["enterloan", "enterorder"]:
+        raise Acs4Exception("mint action argument should be enterloan or enterorder")
 
     if orderid is None:
         orderid = uuid.uuid4().urn
     argsobj = {
-        'action': action,
-        'ordersource': ordersource,
-        'orderid': orderid,
-        'resid': resource,
-        'gbauthdate': make_expiration(0),
-        'dateval': str(int(time.time())),
-        'gblver': 4
-        }
+        "action": action,
+        "ordersource": ordersource,
+        "orderid": orderid,
+        "resid": resource,
+        "gbauthdate": make_expiration(0),
+        "dateval": str(int(time.time())),
+        "gblver": 4,
+    }
     if rights is not None:
-        argsobj['rights'] = rights
+        argsobj["rights"] = rights
     urlargs = urllib.urlencode(argsobj)
     mac = hmac.new(base64.b64decode(secret), urlargs, hashlib.sha1)
     auth = mac.hexdigest()
-    portstr = '' if port == 80 else ':{}'.format(port)
+    portstr = "" if port == 80 else ":{}".format(port)
 
     # replace with string format?
     # construct with urlparse.unsplit()
-    return ('http://' + server + portstr + '/fulfillment/URLLink.acsm?'
-            + urlargs + '&auth=' + auth)
+    return (
+        "http://"
+        + server
+        + portstr
+        + "/fulfillment/URLLink.acsm?"
+        + urlargs
+        + "&auth="
+        + auth
+    )
 
 
-def request(server, api, action, request_args, password,
-            start=0, count=0,
-            permissions=None, port=defaultport):
+def request(
+    server,
+    api,
+    action,
+    request_args,
+    password,
+    start=0,
+    count=0,
+    permissions=None,
+    port=defaultport,
+):
     """Make a xml-mediated DB request to the ACS4 server.
 
     Arguments:
@@ -155,9 +181,9 @@ def request(server, api, action, request_args, password,
     USE WITH CARE, this API can break your acs4 install!
 
     """
-    el = etree.Element('request',
-                       { 'action': action, 'auth': 'builtin' },
-                       nsmap={None: AdeptNS})
+    el = etree.Element(
+        "request", {"action": action, "auth": "builtin"}, nsmap={None: AdeptNS}
+    )
 
     # XXX NOTE new 'replace' action supported in 4.1 server...
     # syntax is possibly <action>replace</action> - not action='replace'!
@@ -169,30 +195,29 @@ def request(server, api, action, request_args, password,
     # Several requests require a subelement name that's different from
     # the API; these are special-cased here.  It's not clear if
     # there's any system to them.
-    if api_el_name == 'resourceItem':
-        api_el_name += 'Info'
-    if api_el_name in ('distributor', 'license'
-                       'fulfillment', 'fulfillmentItem'):
-        api_el_name += 'Data'
+    if api_el_name == "resourceItem":
+        api_el_name += "Info"
+    if api_el_name in ("distributor", "license" "fulfillment", "fulfillmentItem"):
+        api_el_name += "Data"
     api_el = etree.SubElement(el, api_el_name)
 
     for key in request_args.keys():
         v = request_args[key]
         if v:
-            if key == 'permissions':
+            if key == "permissions":
                 # add permissions (an xml string) only if keyword arg
                 # isn't supplied
                 if permissions is None:
                     if isinstance(v, dict):
-                        perms_el = o_to_el(v, 'permissions')
+                        perms_el = o_to_el(v, "permissions")
                     else:
-                        perms_el = read_xml(v, 'permissions')
+                        perms_el = read_xml(v, "permissions")
                     api_el.append(perms_el)
-            elif key == 'metadata':
+            elif key == "metadata":
                 if isinstance(v, dict):
                     meta_el = o_to_meta_el(v)
                 else:
-                    meta_el = read_xml(v, 'metadata')
+                    meta_el = read_xml(v, "metadata")
                 api_el.append(meta_el)
             else:
                 # TODO: handle sub-dicts.  Are they ever needed?
@@ -201,22 +226,31 @@ def request(server, api, action, request_args, password,
                 etree.SubElement(api_el, key).text = v
 
     if permissions is not None:
-        perms_el = read_xml(permissions, 'permissions')
+        perms_el = read_xml(permissions, "permissions")
         api_el.append(perms_el)
 
-    response = post(el, server, port, password,
-                    '/admin/Manage' + api[0].upper() + api[1:])
+    response = post(
+        el, server, port, password, "/admin/Manage" + api[0].upper() + api[1:]
+    )
     if response is None:
         return None
-    if action == 'count':
-        return int(response.find('.//' + AdeptNSBracketed + 'count').text)
-    return [el_to_o(info_el) for info_el in
-            response.findall('.//' + AdeptNSBracketed + api_el_name)]
+    if action == "count":
+        return int(response.find(".//" + AdeptNSBracketed + "count").text)
+    return [
+        el_to_o(info_el)
+        for info_el in response.findall(".//" + AdeptNSBracketed + api_el_name)
+    ]
 
 
-def upload(server, filehandle, password,
-           datapath=None, port=defaultport,
-           metadata=None, permissions=None):
+def upload(
+    server,
+    filehandle,
+    password,
+    datapath=None,
+    port=defaultport,
+    metadata=None,
+    permissions=None,
+):
     """Upload a file to ACS4.
 
     Arguments:
@@ -242,49 +276,49 @@ def upload(server, filehandle, password,
 
     """
 
-    el = etree.Element('package', nsmap={None: AdeptNS})
+    el = etree.Element("package", nsmap={None: AdeptNS})
 
     if filehandle is not None:
-        etree.SubElement(el, 'data').text = base64.encodestring(filehandle.read())
+        etree.SubElement(el, "data").text = base64.encodestring(filehandle.read())
     else:
-        etree.SubElement(el, 'dataPath').text = datapath
+        etree.SubElement(el, "dataPath").text = datapath
 
     if permissions is not None:
         if isinstance(permissions, dict):
-            perms_el = o_to_el(permissions, 'permissions')
+            perms_el = o_to_el(permissions, "permissions")
         else:
-            perms_el = read_xml(permissions, 'permissions')
+            perms_el = read_xml(permissions, "permissions")
         el.append(perms_el)
     if metadata is not None:
         if isinstance(metadata, dict):
             meta_el = o_to_meta_el(metadata)
         else:
-            meta_el = read_xml(metadata, 'metadata')
+            meta_el = read_xml(metadata, "metadata")
         el.append(meta_el)
 
-    response = post(el, server, port, password,
-                    '/packaging/Package')
+    response = post(el, server, port, password, "/packaging/Package")
     if response is None:
         return None
     return el_to_o(response)
 
 
-def queryresourceitems(server, password,
-                       start=0, count=10,
-                       distributor=None, port=defaultport):
-    el = etree.Element('request', nsmap={None: AdeptNS})
+def queryresourceitems(
+    server, password, start=0, count=10, distributor=None, port=defaultport
+):
+    el = etree.Element("request", nsmap={None: AdeptNS})
     if distributor is not None:
-        etree.SubElement(el, 'distributor').text = distributor;
+        etree.SubElement(el, "distributor").text = distributor
 
     add_limit_el(el, start, count)
 
-    etree.SubElement(el, 'QueryResourceItems')
-    response = post(el, server, port, password,
-                    '/admin/QueryResourceItems')
+    etree.SubElement(el, "QueryResourceItems")
+    response = post(el, server, port, password, "/admin/QueryResourceItems")
     if response is None:
         return None
-    return [el_to_o(info_el) for info_el in
-            response.findall('.//' + AdeptNSBracketed + 'resourceItemInfo')]
+    return [
+        el_to_o(info_el)
+        for info_el in response.findall(".//" + AdeptNSBracketed + "resourceItemInfo")
+    ]
 
 
 def post(xml, server, port, password, api_path):
@@ -302,27 +336,27 @@ def post(xml, server, port, password, api_path):
         xml = etree.fromstring(xml)
 
     # Add 'envelope' and hmac
-    post_expiration = make_expiration(expiration_secs) if expiration is None else expiration
-    etree.SubElement(xml, 'expiration').text = post_expiration
+    post_expiration = (
+        make_expiration(expiration_secs) if expiration is None else expiration
+    )
+    etree.SubElement(xml, "expiration").text = post_expiration
     post_nonce = base64.b64encode(os.urandom(20))[:20] if nonce is None else nonce
-    etree.SubElement(xml, 'nonce').text = post_nonce
-    etree.SubElement(xml, 'hmac').text = make_hmac(password, xml)
+    etree.SubElement(xml, "nonce").text = post_nonce
+    etree.SubElement(xml, "hmac").text = make_hmac(password, xml)
 
-    request = etree.tostring(xml,
-                             pretty_print=True,
-                             encoding='utf-8')
+    request = etree.tostring(xml, pretty_print=True, encoding="utf-8")
     if debug:
         print(request)
     if dry_run:
         return None
 
-    headers = { 'Content-Type': 'application/vnd.adobe.adept+xml' }
+    headers = {"Content-Type": "application/vnd.adobe.adept+xml"}
     conn = httplib.HTTPConnection(server, port)
-    conn.request('POST', api_path, request, headers)
+    conn.request("POST", api_path, request, headers)
 
     try:
         response_str = conn.getresponse().read()
-        response = etree.fromstring(response_str) # XXX could read directly?
+        response = etree.fromstring(response_str)  # XXX could read directly?
     except etree.XMLSyntaxError:
         raise Acs4Exception("Couldn't parse server response as XML: " + response_str)
     conn.close()
@@ -330,14 +364,14 @@ def post(xml, server, port, password, api_path):
     if debug:
         print(response_str)
 
-    if response.tag == etree.QName(AdeptNS, 'error'):
-        raise Acs4Exception(urllib.unquote(response.get('data')))
+    if response.tag == etree.QName(AdeptNS, "error"):
+        raise Acs4Exception(urllib.unquote(response.get("data")))
     return response
 
 
 def get_distributor_info(server, password, distributor, port=defaultport):
-    request_args = { 'distributor': distributor }
-    reply = request(server, 'Distributor', 'get', request_args, password)
+    request_args = {"distributor": distributor}
+    reply = request(server, "Distributor", "get", request_args, password)
     return reply[0]
 
 
@@ -353,8 +387,8 @@ def get_resourcekey_info(server, password, resource, port=defaultport):
     returned as a string.
 
     """
-    request_args = { 'resource': resource }
-    reply = request(server, 'ResourceKey', 'get', request_args, password, port=port)
+    request_args = {"resource": resource}
+    reply = request(server, "ResourceKey", "get", request_args, password, port=port)
     return reply[0]
 
 
@@ -365,35 +399,35 @@ def set_resourcekey_info(server, password, info, port=defaultport):
     set_resource_info().
 
     """
-    reply = request(server, 'ResourceKey', 'update', info, password, port=port)
+    reply = request(server, "ResourceKey", "update", info, password, port=port)
     return reply[0]
 
 
 def get_resourceitem_info(server, password, resource, port=defaultport):
     # handle multiples?
-    request_args = { 'resource': resource }
-    reply = request(server, 'ResourceItem', 'get', request_args, password, port=port)
+    request_args = {"resource": resource}
+    reply = request(server, "ResourceItem", "get", request_args, password, port=port)
     return reply[0]
 
 
 def set_resourceitem_info(server, password, info, port=defaultport):
     """ note that acs4 won't let this change metadata info """
 
-    reply = request(server, 'ResourceItem', 'update', info, password, port=port)
+    reply = request(server, "ResourceItem", "update", info, password, port=port)
     return reply[0]
 
 
 def add_limit_el(el, start, count):
     if start != 0 or count != 0:
         if start != 0 and count == 0:
-            raise Acs4Exception('Please provide count when using start')
+            raise Acs4Exception("Please provide count when using start")
         if start < 0 or count < 0:
-            raise Acs4Exception('Please use positive values for count and start')
-        limit_el = etree.SubElement(el, 'limit')
+            raise Acs4Exception("Please use positive values for count and start")
+        limit_el = etree.SubElement(el, "limit")
         if start != 0:
-            etree.SubElement(limit_el, 'start').text = str(start)
+            etree.SubElement(limit_el, "start").text = str(start)
         if count != 0:
-            etree.SubElement(limit_el, 'count').text = str(count)
+            etree.SubElement(limit_el, "count").text = str(count)
 
 
 def make_expiration(seconds):
@@ -410,7 +444,7 @@ def make_hmac(password, el):
     # distributor's shared secret.
 
     passhash = None
-    if len(password) == 28 and password[-1] == '=':
+    if len(password) == 28 and password[-1] == "=":
         try:
             passhash = base64.b64decode(password)
         except TypeError:
@@ -421,7 +455,7 @@ def make_hmac(password, el):
         passhasher.update(password)
         passhash = passhasher.digest()
 
-    mac = hmac.new(passhash, '', hashlib.sha1)
+    mac = hmac.new(passhash, "", hashlib.sha1)
 
     if show_serialization:
         logger = debug_consumer()
@@ -436,27 +470,27 @@ def make_hmac(password, el):
 def serialize_el(el, consumer):
     """ Recursively serialize the given element to supplied consumer """
 
-    def consume_str(s, encoding='utf-8'):
+    def consume_str(s, encoding="utf-8"):
         if isinstance(s, unicode):
             s = s.encode(encoding)
-        consumer.update(chr((len(s) >> 8) & 0xff))
-        consumer.update(chr((len(s) & 0xff)))
+        consumer.update(chr((len(s) >> 8) & 0xFF))
+        consumer.update(chr((len(s) & 0xFF)))
         consumer.update(s)
 
-    BEGIN_ELEMENT = '\x01'
-    END_ATTRIBUTES = '\x02'
-    END_ELEMENT = '\x03'
-    TEXT_NODE = '\x04'
-    ATTRIBUTE = '\x05'
+    BEGIN_ELEMENT = "\x01"
+    END_ATTRIBUTES = "\x02"
+    END_ELEMENT = "\x03"
+    TEXT_NODE = "\x04"
+    ATTRIBUTE = "\x05"
 
-    p = re.compile(r'(\{(.*)\})?(.*)')
+    p = re.compile(r"(\{(.*)\})?(.*)")
     m = p.match(el.tag)
     namespace = m.group(2)
     localname = m.group(3)
     if namespace is None:
         namespace = el.nsmap[None]
 
-    if namespace == AdeptNS and localname == 'signature':
+    if namespace == AdeptNS and localname == "signature":
         return
 
     consumer.update(BEGIN_ELEMENT)
@@ -470,7 +504,7 @@ def serialize_el(el, consumer):
     keys = sorted(el.attrib.keys())
     for attname in keys:
         consumer.update(ATTRIBUTE)
-        consume_str("") # TODO element namespace
+        consume_str("")  # TODO element namespace
         consume_str(attname)
 
         consume_str(el.attrib[attname])
@@ -485,10 +519,10 @@ def serialize_el(el, consumer):
             remains = 0
             while True:
                 remains = length - i
-                if remains > 0x7fff: # TODO test with smaller value
-                    remains = 0x7fff
+                if remains > 0x7FFF:  # TODO test with smaller value
+                    remains = 0x7FFF
                 consumer.update(TEXT_NODE)
-                consume_str(text[i: i + remains])
+                consume_str(text[i : i + remains])
                 i += remains
                 if i >= length:
                     break
@@ -500,21 +534,25 @@ def serialize_el(el, consumer):
 
 class debug_consumer:
     def __init__(self):
-        self.s = ''
+        self.s = ""
+
     def update(self, s):
-        serialize_names = [ '',
-                             'BEGIN_ELEMENT',
-                             'END_ATTRIBUTES',
-                             'END_ELEMENT',
-                             'TEXT_NODE',
-                             'ATTRIBUTE' ]
+        serialize_names = [
+            "",
+            "BEGIN_ELEMENT",
+            "END_ATTRIBUTES",
+            "END_ELEMENT",
+            "TEXT_NODE",
+            "ATTRIBUTE",
+        ]
         if len(s) == 1:
             self.s += hex(ord(s))
             if ord(s) >= 1 and ord(s) <= 5:
-                self.s += ' ' + serialize_names[ord(s)]
+                self.s += " " + serialize_names[ord(s)]
         else:
             self.s += s
-        self.s += '\n'
+        self.s += "\n"
+
     def dump(self):
         return self.s
 
@@ -533,25 +571,24 @@ def read_xml(xml, nodename):
         # TODO fix unpythonic above test?
         arg_el = xml
     else:
-        ncparser = etree.XMLParser(remove_comments=True,
-                                   remove_blank_text=True)
+        ncparser = etree.XMLParser(remove_comments=True, remove_blank_text=True)
         arg_el = etree.fromstring(xml, parser=ncparser)
-    if (arg_el.tag == nodename or
-        arg_el.tag == AdeptNSBracketed + nodename):
+    if arg_el.tag == nodename or arg_el.tag == AdeptNSBracketed + nodename:
         el = arg_el
     else:
-        el = arg_el.find('.//' + AdeptNSBracketed + nodename)
+        el = arg_el.find(".//" + AdeptNSBracketed + nodename)
     if el is None:
-        el = arg_el.find('.//' + nodename)
+        el = arg_el.find(".//" + nodename)
     if el is None:
         # string formatting here
-        raise Acs4Exception('No ' + nodename + 'element in supplied '
-                            + nodename + ' xml')
+        raise Acs4Exception(
+            "No " + nodename + "element in supplied " + nodename + " xml"
+        )
     return el
 
 
 def decompose_tag(tag):
-    p = re.compile(r'(\{(.*)\})?(.*)')
+    p = re.compile(r"(\{(.*)\})?(.*)")
     m = p.match(tag)
     namespace = m.group(2)
     localname = m.group(3)
@@ -560,9 +597,9 @@ def decompose_tag(tag):
 
 def el_to_o(el):
     if len(el) == 0:
-        if el.tag == AdeptNSBracketed + 'count' or el.tag == 'count':
+        if el.tag == AdeptNSBracketed + "count" or el.tag == "count":
             result = {}
-            for attr in ('initial', 'max', 'incrementInterval'):
+            for attr in ("initial", "max", "incrementInterval"):
                 if el.get(attr):
                     result[attr] = el.get(attr)
             return result
@@ -582,28 +619,30 @@ def el_to_o(el):
 
 def o_to_meta_el(o):
     """ Convert a dict of metadata into a valid dc metadata element """
-    dc = 'http://purl.org/dc/elements/1.1/'
-    dcb = '{' + dc + '}'
-    meta_el = etree.Element('metadata', nsmap = {'dc': dc})
+    dc = "http://purl.org/dc/elements/1.1/"
+    dcb = "{" + dc + "}"
+    meta_el = etree.Element("metadata", nsmap={"dc": dc})
     for k, v in o.iteritems():
         etree.SubElement(meta_el, dcb + k).text = v
     return meta_el
 
 
 def o_to_el(o, name):
-    if name == 'metadata':
+    if name == "metadata":
         return o_to_meta_el(o)
     el = etree.Element(name)
     for k, v in o.iteritems():
         if isinstance(v, dict):
             el.append(o_to_el(v, k))
         else:
-            if name == 'count': # this is the only element with attributes in the schema?
+            if (
+                name == "count"
+            ):  # this is the only element with attributes in the schema?
                 el.set(k, v)
             else:
                 etree.SubElement(el, k).text = v
     return el
 
 
-if __name__ == '__main__':
-    raise Exception('not to be called as a __main__')
+if __name__ == "__main__":
+    raise Exception("not to be called as a __main__")
