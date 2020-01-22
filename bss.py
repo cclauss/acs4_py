@@ -144,7 +144,7 @@ class acs4db():
 
 
     def get_fulfillment_info(self, resource=None):
-        """ returns a list of resources in the fulfilment table , values set to dict of handy facts """
+        """ returns a list of resources in the fulfillment table , values set to dict of handy facts """
 
         resources = []
 
